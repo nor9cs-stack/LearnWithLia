@@ -4,14 +4,14 @@ import { execFileSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { hash } from "@node-rs/argon2";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { Role, UserStatus } from "../app/generated/prisma/enums";
+import { createDatabaseAdapter } from "../lib/database-adapter";
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!connectionString) throw new Error("请先设置 DIRECT_URL 或 DATABASE_URL");
 
-const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+const db = new PrismaClient({ adapter: createDatabaseAdapter(connectionString) });
 const input = createInterface({ input: stdin, output: stdout });
 
 async function hiddenQuestion(prompt: string) {

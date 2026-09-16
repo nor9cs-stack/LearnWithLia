@@ -1,8 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-const ownerPassword = process.env.E2E_OWNER_PASSWORD ?? process.env.SEED_OWNER_PASSWORD;
-const teacherPassword = process.env.E2E_TEACHER_PASSWORD ?? process.env.SEED_TEACHER_PASSWORD;
-const studentPassword = process.env.E2E_STUDENT_PASSWORD ?? process.env.SEED_STUDENT_PASSWORD;
+const nonEmpty = (value: string | undefined) => value?.trim() || undefined;
+const ownerPassword =
+  nonEmpty(process.env.E2E_OWNER_PASSWORD) ?? nonEmpty(process.env.SEED_OWNER_PASSWORD);
+const teacherPassword =
+  nonEmpty(process.env.E2E_TEACHER_PASSWORD) ?? nonEmpty(process.env.SEED_TEACHER_PASSWORD);
+const studentPassword =
+  nonEmpty(process.env.E2E_STUDENT_PASSWORD) ?? nonEmpty(process.env.SEED_STUDENT_PASSWORD);
 const configured = Boolean(ownerPassword && teacherPassword && studentPassword);
 
 test.describe("seeded three-role journey", () => {
@@ -26,8 +30,8 @@ test.describe("seeded three-role journey", () => {
     await teacher.getByLabel("邮箱").fill("lia@learnwithlia.local");
     await teacher.getByLabel("密码").fill(teacherPassword!);
     await teacher.getByRole("button", { name: "登录并继续" }).click();
-    await expect(teacher).toHaveURL(/\/teacher\/students/);
-    await expect(teacher.getByRole("heading", { name: "我的学生" })).toBeVisible();
+    await expect(teacher).toHaveURL(/\/teacher\/exams/);
+    await expect(teacher.getByRole("heading", { name: "考试管理" })).toBeVisible();
     await teacherContext.close();
   });
 
@@ -42,7 +46,11 @@ test.describe("seeded three-role journey", () => {
 
     await student.goto("/teacher/students");
     await expect(student).toHaveURL(/\/student\/exams/);
-    await student.getByText(/开始新一次作答|继续作答/).first().click();
+    await student
+      .getByRole("button", { name: "开始新一次作答" })
+      .or(student.getByRole("link", { name: "继续作答" }))
+      .first()
+      .click();
     await expect(student).toHaveURL(/\/student\/attempts\//);
     const html = await student.content();
     expect(html).not.toContain("Clarity 1 point");

@@ -1,7 +1,6 @@
 import "dotenv/config";
 
 import { hash } from "@node-rs/argon2";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
 import {
   AttemptStatus,
@@ -11,6 +10,7 @@ import {
   Role,
   UserStatus,
 } from "../app/generated/prisma/enums";
+import { createDatabaseAdapter } from "../lib/database-adapter";
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!connectionString) throw new Error("SEED 需要 DIRECT_URL 或 DATABASE_URL");
@@ -24,7 +24,7 @@ if (!passwords.owner || !passwords.teacher || !passwords.student) {
   throw new Error("请通过环境变量提供三个 SEED_*_PASSWORD；种子脚本不会使用或打印默认密码");
 }
 
-const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+const db = new PrismaClient({ adapter: createDatabaseAdapter(connectionString) });
 const passwordOptions = {
   algorithm: 2,
   memoryCost: 19_456,
