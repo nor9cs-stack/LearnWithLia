@@ -1,0 +1,392 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  TEACHER
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ExamStatus {
+  DRAFT
+  ENABLED
+  DISABLED
+  ARCHIVED
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  FILL_BLANK
+  SHORT_ANSWER
+  ESSAY
+}
+
+enum GradingMode {
+  AUTO
+  MANUAL
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  PENDING_REVIEW
+  GRADED
+}
+
+enum FileType {
+  PDF
+  DOCX
+  DOC
+}
+
+enum ImportStatus {
+  UPLOADED
+  QUEUED
+  PROCESSING
+  READY_FOR_REVIEW
+  OCR_REQUIRED
+  FAILED
+}
+
+model User {
+  id                 String           @id @default(cuid())
+  role               Role
+  status             UserStatus       @default(ACTIVE)
+  name               String
+  email              String?          @unique
+  emailNormalized    String?          @unique
+  passwordHash       String
+  mustChangePassword Boolean          @default(true)
+  sessionVersion     Int              @default(0)
+  lastLoginAt        DateTime?
+  passwordChangedAt  DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  archivedAt         DateTime?
+  studentProfile     StudentProfile?
+  teacherStudents    TeacherStudent[] @relation("TeacherStudents")
+  studentTeachers    TeacherStudent[] @relation("StudentTeachers")
+  ownedExams         Exam[]           @relation("ExamOwner")
+  createdAssignments Assignment[]     @relation("AssignmentCreator")
+  uploadedFiles      UploadedFile[]   @relation("FileUploader")
+  attempts           Attempt[]        @relation("StudentAttempts")
+  manualGrades       ManualGrade[]    @relation("ManualGrader")
+  auditLogs          AuditLog[]       @relation("AuditActor")
+
+  @@index([role, status])
+  @@index([archivedAt])
+}
+
+model StudentProfile {
+  id                      String       @id @default(cuid())
+  userId                  String       @unique
+  studentNumber           String
+  studentNumberNormalized String       @unique
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  user                    User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  assignments             Assignment[]
+
+  @@index([studentNumber])
+}
+
+model TeacherStudent {
+  id        String   @id @default(cuid())
+  teacherId String
+  studentId String
+  createdAt DateTime @default(now())
+  teacher   User     @relation("TeacherStudents", fields: [teacherId], references: [id], onDelete: Restrict)
+  student   User     @relation("StudentTeachers", fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([teacherId, studentId])
+  @@index([studentId])
+}
+
+model Exam {
+  id          String        @id @default(cuid())
+  ownerId     String
+  title       String
+  description String?
+  status      ExamStatus    @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  archivedAt  DateTime?
+  owner       User          @relation("ExamOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  versions    ExamVersion[]
+
+  @@index([ownerId, status])
+  @@index([archivedAt])
+}
+
+model ExamVersion {
+  id             String         @id @default(cuid())
+  examId         String
+  versionNumber  Int
+  status         ExamStatus     @default(DRAFT)
+  title          String
+  instructionsMd String?
+  totalPoints    Decimal        @default(0) @db.Decimal(10, 2)
+  publishedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  exam           Exam           @relation(fields: [examId], references: [id], onDelete: Restrict)
+  passages       Passage[]
+  questions      Question[]
+  assignments    Assignment[]
+  attempts       Attempt[]
+  uploadedFiles  UploadedFile[]
+
+  @@unique([examId, versionNumber])
+  @@index([examId, status])
+}
+
+model Passage {
+  id            String      @id @default(cuid())
+  examVersionId String
+  title         String?
+  contentMd     String
+  order         Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  examVersion   ExamVersion @relation(fields: [examVersionId], references: [id], onDelete: Cascade)
+  questions     Question[]
+
+  @@unique([examVersionId, order])
+}
+
+model Question {
+  id                   String           @id @default(cuid())
+  examVersionId        String
+  passageId            String?
+  type                 QuestionType
+  gradingMode          GradingMode
+  promptMd             String
+  order                Int
+  points               Decimal          @db.Decimal(8, 2)
+  caseSensitive        Boolean          @default(false)
+  trimWhitespace       Boolean          @default(true)
+  normalizePunctuation Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  examVersion          ExamVersion      @relation(fields: [examVersionId], references: [id], onDelete: Cascade)
+  passage              Passage?         @relation(fields: [passageId], references: [id], onDelete: SetNull)
+  options              QuestionOption[]
+  key                  QuestionKey?
+  responses            Response[]
+  unknownWords         UnknownWord[]
+
+  @@unique([examVersionId, order])
+  @@index([passageId])
+}
+
+model QuestionOption {
+  id             String                   @id @default(cuid())
+  questionId     String
+  optionKey      String
+  contentMd      String
+  order          Int
+  question       Question                 @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  correctForKeys QuestionCorrectOption[]
+  selectedIn     ResponseSelectedOption[]
+
+  @@unique([questionId, optionKey])
+  @@unique([questionId, order])
+}
+
+model QuestionKey {
+  id                String                  @id @default(cuid())
+  questionId        String                  @unique
+  trueFalseAnswer   Boolean?
+  numericAnswer     Decimal?                @db.Decimal(18, 6)
+  numericTolerance  Decimal?                @db.Decimal(18, 6)
+  referenceAnswerMd String?
+  rubricMd          String?
+  gradingNotesMd    String?
+  question          Question                @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  correctOptions    QuestionCorrectOption[]
+  acceptableAnswers AcceptableAnswer[]
+}
+
+model QuestionCorrectOption {
+  questionKeyId String
+  optionId      String
+  questionKey   QuestionKey    @relation(fields: [questionKeyId], references: [id], onDelete: Cascade)
+  option        QuestionOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([questionKeyId, optionId])
+  @@index([optionId])
+}
+
+model AcceptableAnswer {
+  id              String      @id @default(cuid())
+  questionKeyId   String
+  value           String
+  normalizedValue String
+  questionKey     QuestionKey @relation(fields: [questionKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([questionKeyId, normalizedValue])
+}
+
+model Assignment {
+  id               String         @id @default(cuid())
+  examVersionId    String
+  studentProfileId String
+  assignedById     String
+  availableFrom    DateTime?
+  dueAt            DateTime?
+  maxAttempts      Int?
+  timeLimitMinutes Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  examVersion      ExamVersion    @relation(fields: [examVersionId], references: [id], onDelete: Restrict)
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  assignedBy       User           @relation("AssignmentCreator", fields: [assignedById], references: [id], onDelete: Restrict)
+  attempts         Attempt[]
+
+  @@unique([examVersionId, studentProfileId])
+  @@index([studentProfileId, dueAt])
+  @@index([assignedById])
+}
+
+model Attempt {
+  id                 String        @id @default(cuid())
+  assignmentId       String
+  examVersionId      String
+  studentId          String
+  attemptNumber      Int
+  status             AttemptStatus @default(IN_PROGRESS)
+  startedAt          DateTime      @default(now())
+  expiresAt          DateTime?
+  submittedAt        DateTime?
+  gradedAt           DateTime?
+  autoCorrectCount   Int?
+  autoQuestionCount  Int?
+  autoScore          Decimal?      @db.Decimal(10, 2)
+  pendingManualCount Int?
+  finalScore         Decimal?      @db.Decimal(10, 2)
+  teacherFeedbackMd  String?
+  assignment         Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  examVersion        ExamVersion   @relation(fields: [examVersionId], references: [id], onDelete: Restrict)
+  student            User          @relation("StudentAttempts", fields: [studentId], references: [id], onDelete: Restrict)
+  responses          Response[]
+  unknownWords       UnknownWord[]
+
+  @@unique([assignmentId, attemptNumber])
+  @@index([studentId, submittedAt])
+  @@index([status, submittedAt])
+  @@index([examVersionId])
+}
+
+model Response {
+  id            String                   @id @default(cuid())
+  attemptId     String
+  questionId    String
+  textAnswer    String?
+  booleanAnswer Boolean?
+  numericAnswer Decimal?                 @db.Decimal(18, 6)
+  version       Int                      @default(1)
+  autoCorrect   Boolean?
+  autoScore     Decimal?                 @db.Decimal(8, 2)
+  answeredAt    DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  attempt       Attempt                  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question      Question                 @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  selected      ResponseSelectedOption[]
+  manualGrade   ManualGrade?
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+}
+
+model ResponseSelectedOption {
+  responseId String
+  optionId   String
+  response   Response       @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  option     QuestionOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([responseId, optionId])
+  @@index([optionId])
+}
+
+model UnknownWord {
+  id         String   @id @default(cuid())
+  attemptId  String
+  questionId String
+  exactText  String   @db.VarChar(160)
+  prefix     String   @db.VarChar(160)
+  suffix     String   @db.VarChar(160)
+  occurrence Int      @default(0)
+  createdAt  DateTime @default(now())
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, questionId, exactText, prefix, suffix, occurrence])
+  @@index([questionId])
+}
+
+model ManualGrade {
+  id         String   @id @default(cuid())
+  responseId String   @unique
+  graderId   String
+  score      Decimal  @db.Decimal(8, 2)
+  feedbackMd String?
+  gradedAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  grader     User     @relation("ManualGrader", fields: [graderId], references: [id], onDelete: Restrict)
+
+  @@index([graderId, gradedAt])
+}
+
+model UploadedFile {
+  id              String       @id @default(cuid())
+  examVersionId   String
+  uploadedById    String
+  originalName    String
+  storagePath     String       @unique
+  declaredMime    String
+  detectedMime    String
+  fileType        FileType
+  sizeBytes       Int
+  sha256          String
+  importStatus    ImportStatus @default(UPLOADED)
+  extractedText   String?
+  importErrorCode String?
+  importMessage   String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  examVersion     ExamVersion  @relation(fields: [examVersionId], references: [id], onDelete: Restrict)
+  uploadedBy      User         @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([examVersionId, importStatus])
+  @@index([uploadedById, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([action, createdAt])
+}

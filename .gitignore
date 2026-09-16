@@ -1,0 +1,58 @@
+# dependencies
+node_modules/
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# local secrets
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+.secrets/
+secrets/
+credentials*.json
+service-account*.json
+*.key
+*.p12
+*.pfx
+
+# vercel
+.vercel
+
+# prisma generated client
+/app/generated/prisma
+
+# local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+/prisma/dev.db*
+
+# private/local uploads
+/uploads/
+/private-uploads/
+/storage/uploads/
+/tmp/uploads/
+
+# misc
+.DS_Store
+*.pem
+*.log
+next-env.d.ts
+tsconfig.tsbuildinfo
