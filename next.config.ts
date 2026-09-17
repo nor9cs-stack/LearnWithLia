@@ -32,6 +32,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
