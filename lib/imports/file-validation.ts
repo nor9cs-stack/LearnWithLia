@@ -68,3 +68,13 @@ export async function validateExamFileContent(input: {
   }
   return { ...validated, detectedMime: validDetectedMimes[validated.fileType][0]! };
 }
+
+export async function validateTextbookPdfContent(input: {
+  name: string;
+  declaredMime: string;
+  bytes: Uint8Array;
+}) {
+  const validated = await validateExamFileContent(input);
+  if (validated.fileType !== "PDF") throw new Error("TEXTBOOK_PDF_REQUIRED");
+  return validated;
+}

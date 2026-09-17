@@ -47,6 +47,21 @@ export async function uploadPrivateExamFile(path: string, bytes: Uint8Array, con
   if (error) throw new Error(`STORAGE_UPLOAD_FAILED:${error.message}`);
 }
 
+export async function downloadPrivateFile(path: string) {
+  const { bucket } = storageConfig();
+  await ensurePrivateBucket();
+  const { data, error } = await getStorageAdmin().storage.from(bucket).download(path);
+  if (error) throw new Error(`STORAGE_DOWNLOAD_FAILED:${error.message}`);
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+export async function deletePrivateFile(path: string) {
+  const { bucket } = storageConfig();
+  await ensurePrivateBucket();
+  const { error } = await getStorageAdmin().storage.from(bucket).remove([path]);
+  if (error) throw new Error(`STORAGE_DELETE_FAILED:${error.message}`);
+}
+
 export async function createExamFileSignedUrl(path: string) {
   const { bucket } = storageConfig();
   await ensurePrivateBucket();

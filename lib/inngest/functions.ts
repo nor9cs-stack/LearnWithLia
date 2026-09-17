@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AttemptStatus, ExamStatus, ImportStatus } from "@/app/generated/prisma/enums";
+import { AttemptStatus, ExamStatus, ImportStatus, SubmissionReason } from "@/app/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { submitAttempt } from "@/lib/exams/submission";
 import { extractExamText } from "@/lib/imports/extract";
@@ -87,7 +87,9 @@ export const submitExpiredAttempts = inngest.createFunction(
     );
 
     for (const attempt of expired) {
-      await step.run(`submit-${attempt.id}`, () => submitAttempt(attempt.id, attempt.studentId));
+      await step.run(`submit-${attempt.id}`, () =>
+        submitAttempt(attempt.id, attempt.studentId, SubmissionReason.TIME_EXPIRED),
+      );
     }
 
     return { submitted: expired.length };

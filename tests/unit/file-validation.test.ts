@@ -1,6 +1,11 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { APP_CONFIG } from "@/lib/config";
-import { detectExamFileSignature, validateExamFile } from "@/lib/imports/file-validation";
+import {
+  detectExamFileSignature,
+  validateExamFile,
+  validateTextbookPdfContent,
+} from "@/lib/imports/file-validation";
 
 describe("exam upload validation", () => {
   it("detects supported magic bytes", () => {
@@ -32,5 +37,42 @@ describe("exam upload validation", () => {
         bytes: new Uint8Array(APP_CONFIG.upload.maxBytes + 1),
       }),
     ).toThrow("INVALID_FILE_SIZE");
+  });
+});
+
+describe("textbook PDF validation", () => {
+  it("accepts the real minimal PDF fixture", async () => {
+    const fixture = await readFile(new URL("../fixtures/minimal-text.pdf", import.meta.url));
+    await expect(
+      validateTextbookPdfContent({
+        name: "lesson.pdf",
+        declaredMime: "application/pdf",
+        bytes: new Uint8Array(fixture),
+      }),
+    ).resolves.toMatchObject({ fileType: "PDF", detectedMime: "application/pdf" });
+  });
+
+  it("rejects non-PDF, disguised MIME, and oversized textbook uploads", async () => {
+    await expect(
+      validateTextbookPdfContent({
+        name: "lesson.docx",
+        declaredMime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        bytes: Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x00]),
+      }),
+    ).rejects.toThrow("FILE_CONTENT_TYPE_MISMATCH");
+    await expect(
+      validateTextbookPdfContent({
+        name: "lesson.pdf",
+        declaredMime: "text/plain",
+        bytes: new TextEncoder().encode("%PDF-1.7\nnot really declared as a PDF"),
+      }),
+    ).rejects.toThrow("FILE_MIME_MISMATCH");
+    await expect(
+      validateTextbookPdfContent({
+        name: "lesson.pdf",
+        declaredMime: "application/pdf",
+        bytes: new Uint8Array(APP_CONFIG.upload.maxBytes + 1),
+      }),
+    ).rejects.toThrow("INVALID_FILE_SIZE");
   });
 });

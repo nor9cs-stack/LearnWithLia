@@ -38,6 +38,8 @@ export default defineConfig({
   webServer: {
     command: `pnpm dev --hostname ${serverUrl.hostname} --port ${serverPort}`,
     url: baseOrigin,
+    // Local E2E uses the documented development fallback instead of consuming Preview rate-limit quotas.
+    env: { UPSTASH_REDIS_REST_URL: "", UPSTASH_REDIS_REST_TOKEN: "" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

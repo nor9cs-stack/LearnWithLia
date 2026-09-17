@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { AttemptStatus, ExamStatus, Role } from "@/app/generated/prisma/enums";
+import { AttemptStatus, ExamStatus, Role, SubmissionReason } from "@/app/generated/prisma/enums";
 import { AuthorizationError, requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { evaluateAttemptEligibility, isAttemptExpired } from "@/lib/exams/attempt-timing";
@@ -20,7 +20,7 @@ export async function startAttemptAction(formData: FormData) {
   if (!assignment) throw new AuthorizationError(zh.errors.assignmentNotFound, 404);
   const inProgress = assignment.attempts.find((attempt) => attempt.status === AttemptStatus.IN_PROGRESS);
   if (inProgress && !isAttemptExpired(inProgress.expiresAt)) redirect(`/student/attempts/${inProgress.id}`);
-  if (inProgress) await submitAttempt(inProgress.id, student.id);
+  if (inProgress) await submitAttempt(inProgress.id, student.id, SubmissionReason.TIME_EXPIRED);
 
   const completedCount = assignment.attempts.filter((attempt) => attempt.status !== AttemptStatus.IN_PROGRESS).length + (inProgress ? 1 : 0);
   const eligibility = evaluateAttemptEligibility({
@@ -57,7 +57,7 @@ export async function saveResponseAction(rawInput: unknown) {
   if (!attempt) throw new AuthorizationError(zh.errors.attemptNotFound, 404);
   if (attempt.status !== AttemptStatus.IN_PROGRESS) return { ok: false as const, reason: "ALREADY_SUBMITTED" as const };
   if (isAttemptExpired(attempt.expiresAt)) {
-    await submitAttempt(attempt.id, student.id);
+    await submitAttempt(attempt.id, student.id, SubmissionReason.TIME_EXPIRED);
     return { ok: false as const, reason: "EXPIRED" as const };
   }
   const question = await db.question.findFirst({

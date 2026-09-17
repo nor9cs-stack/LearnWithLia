@@ -6,11 +6,14 @@ const database = new PGlite();
 
 describe("PostgreSQL migration invariants", () => {
   beforeAll(async () => {
-    const migration = await readFile(
-      new URL("../../prisma/migrations/202609160001_init/migration.sql", import.meta.url),
-      "utf8",
-    );
-    await database.exec(migration);
+    const migrations = await Promise.all([
+      readFile(new URL("../../prisma/migrations/202609160001_init/migration.sql", import.meta.url), "utf8"),
+      readFile(
+        new URL("../../prisma/migrations/202609170001_textbooks_and_submission_reason/migration.sql", import.meta.url),
+        "utf8",
+      ),
+    ]);
+    for (const migration of migrations) await database.exec(migration);
     await database.exec(`
       INSERT INTO "User" ("id", "role", "name", "email", "emailNormalized", "passwordHash", "updatedAt")
       VALUES ('teacher-1', 'TEACHER', 'Teacher', 'teacher@example.test', 'teacher@example.test', 'hash', now());
@@ -34,7 +37,18 @@ describe("PostgreSQL migration invariants", () => {
     const result = await database.query<{ count: number }>(
       `SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public'`,
     );
-    expect(result.rows[0]?.count).toBeGreaterThanOrEqual(15);
+    expect(result.rows[0]?.count).toBeGreaterThanOrEqual(17);
+  });
+
+  it("adds textbooks and submission reasons without changing existing attempts", async () => {
+    const columns = await database.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'Attempt' AND column_name = 'submissionReason'`,
+    );
+    const textbookTables = await database.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM information_schema.tables WHERE table_name IN ('Textbook', 'TextbookAssignment')`,
+    );
+    expect(columns.rows).toHaveLength(1);
+    expect(textbookTables.rows[0]?.count).toBe(2);
   });
 
   it("rejects edits and inserts against a published version", async () => {

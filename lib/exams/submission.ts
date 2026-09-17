@@ -1,12 +1,16 @@
 import "server-only";
 
-import { AttemptStatus } from "@/app/generated/prisma/enums";
+import { AttemptStatus, SubmissionReason } from "@/app/generated/prisma/enums";
 import { AuthorizationError } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { gradeQuestion, summarizeGrades } from "@/lib/exams/grading";
 import { zh } from "@/lib/i18n/zh";
 
-export async function submitAttempt(attemptId: string, studentId: string) {
+export async function submitAttempt(
+  attemptId: string,
+  studentId: string,
+  submissionReason: SubmissionReason = SubmissionReason.STUDENT,
+) {
   const attempt = await db.attempt.findFirst({
     where: { id: attemptId, studentId },
     include: {
@@ -61,6 +65,7 @@ export async function submitAttempt(attemptId: string, studentId: string) {
       where: { id: attempt.id, status: AttemptStatus.IN_PROGRESS },
       data: {
         status,
+        submissionReason,
         submittedAt: new Date(),
         gradedAt: status === AttemptStatus.GRADED ? new Date() : null,
         autoCorrectCount: summary.autoCorrectCount,

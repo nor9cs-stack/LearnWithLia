@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenCheck, ClipboardList, GraduationCap, LogOut, Sparkles, Users } from "lucide-react";
+import { BookOpen, BookOpenCheck, ClipboardList, GraduationCap, LogOut, Sparkles, Users } from "lucide-react";
 import { Role } from "@/app/generated/prisma/enums";
 import { logoutAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,20 @@ import { APP_CONFIG } from "@/lib/config";
 type ShellUser = { name: string; role: Role };
 
 const navigation = {
-  OWNER: [{ href: "/owner/teachers", label: zh.shell.teachers, icon: Users }],
+  OWNER: [
+    { href: "/owner/teachers", label: zh.shell.teachers, icon: Users },
+    { href: "/owner/textbooks", label: zh.shell.textbooks, icon: BookOpen },
+  ],
   TEACHER: [
     { href: "/teacher/students", label: zh.shell.students, icon: Users },
     { href: "/teacher/exams", label: zh.shell.exams, icon: ClipboardList },
     { href: "/teacher/review", label: zh.shell.review, icon: BookOpenCheck },
+    { href: "/teacher/textbooks", label: zh.shell.textbooks, icon: BookOpen },
   ],
-  STUDENT: [{ href: "/student/exams", label: zh.shell.myExams, icon: GraduationCap }],
+  STUDENT: [
+    { href: "/student/exams", label: zh.shell.myExams, icon: GraduationCap },
+    { href: "/student/textbooks", label: zh.shell.textbooks, icon: BookOpen },
+  ],
 } satisfies Record<Role, { href: string; label: string; icon: typeof Users }[]>;
 
 export function AppShell({ user, children }: { user: ShellUser; children: React.ReactNode }) {

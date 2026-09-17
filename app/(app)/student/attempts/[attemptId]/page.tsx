@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { AttemptStatus, Role } from "@/app/generated/prisma/enums";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,7 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
       },
     },
   });
-  if (!attempt) throw new Error(zh.errors.attemptRecordNotFound);
+  if (!attempt) notFound();
   if (attempt.status === AttemptStatus.IN_PROGRESS) {
     const questions = createStudentExamQuestions(
       attempt.examVersion.questions,
