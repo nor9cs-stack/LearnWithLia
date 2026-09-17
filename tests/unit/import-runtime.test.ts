@@ -24,7 +24,9 @@ vi.mock("word-extractor", () => ({
 describe("server import runtime", () => {
   it("loads the Inngest route without DOMMatrix and serves GET", async () => {
     const previousInngestDev = process.env.INNGEST_DEV;
-    process.env.INNGEST_DEV = "1";
+    const previousSigningKey = process.env.INNGEST_SIGNING_KEY;
+    process.env.INNGEST_DEV = "0";
+    process.env.INNGEST_SIGNING_KEY = "unit-test-only";
     Reflect.deleteProperty(globalThis, "DOMMatrix");
 
     try {
@@ -35,11 +37,18 @@ describe("server import runtime", () => {
       expect(POST).toBeTypeOf("function");
       expect(PUT).toBeTypeOf("function");
 
-      const response = await GET(new NextRequest("http://localhost/api/inngest"), {});
-      expect(response.status).toBe(200);
+      const getResponse = await GET(new NextRequest("http://localhost/api/inngest"), {});
+      const postExportResponse = await POST(new NextRequest("http://localhost/api/inngest"), {});
+      const putExportResponse = await PUT(new NextRequest("http://localhost/api/inngest"), {});
+
+      expect(getResponse.status).not.toBe(500);
+      expect(postExportResponse.status).not.toBe(500);
+      expect(putExportResponse.status).not.toBe(500);
     } finally {
       if (previousInngestDev === undefined) delete process.env.INNGEST_DEV;
       else process.env.INNGEST_DEV = previousInngestDev;
+      if (previousSigningKey === undefined) delete process.env.INNGEST_SIGNING_KEY;
+      else process.env.INNGEST_SIGNING_KEY = previousSigningKey;
     }
   });
 
@@ -55,6 +64,23 @@ describe("server import runtime", () => {
     expect(result.status).toBe("READY");
     expect(result.text).toContain("LearnWithLia PDF extraction fixture text");
     expect(Reflect.get(globalThis, "DOMMatrix")).toBeTypeOf("function");
+  });
+
+  it("rejects a damaged PDF without disguising it as a successful import", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { extractExamText } = await import("@/lib/imports/extract");
+
+    const result = await extractExamText(new TextEncoder().encode("%PDF-1.7\nnot a real PDF"), "PDF");
+
+    expect(result).toMatchObject({ status: "FAILED", text: "", code: "INVALID_PDF" });
+    expect(log).toHaveBeenCalledWith(
+      "[exam-import] extraction failed",
+      expect.objectContaining({
+        fileType: "PDF",
+        error: expect.objectContaining({ name: expect.any(String), message: expect.any(String) }),
+      }),
+    );
+    log.mockRestore();
   });
 
   it("keeps DOCX extraction on its format-specific loader", async () => {

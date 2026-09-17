@@ -9,7 +9,7 @@
   "packageManager": "pnpm@12.4.2",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build --webpack",
+    "build": "prisma generate && next build --webpack && tsx scripts/verify-pdf-runtime.ts",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "prisma generate && tsc --noEmit",
